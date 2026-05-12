@@ -170,6 +170,10 @@ struct VoiceState {
 	bool probGateSuppress;
 };
 
+// Tracks the last-seen value of kParamRandomizeNow so we only fire the
+// randomize action on the 0→non-zero edge. Set to -1 in construct so the
+// param's initial value of 0 doesn't itself look like an edge.
+
 struct _fugueNT : public _NT_algorithm {
 	_fugueNT() {}
 	~_fugueNT() {}
@@ -183,6 +187,8 @@ struct _fugueNT : public _NT_algorithm {
 	int selectedStep;        // 0..NUM_STEPS-1
 	int focusVoice;          // 0..NUM_VOICES-1
 	int currentPage;         // 0=main, 1=per-voice
+
+	int lastRandomizeNow;    // edge-detect state for the Randomize Now param
 };
 
 // ─── Parameter enum ──────────────────────────────────────────────────────────
@@ -310,11 +316,12 @@ static const _NT_parameter parameters[] = {
 	NT_PARAMETER_CV_INPUT( "Prob C CV",       0, 0 )
 	NT_PARAMETER_CV_INPUT( "Randomize",       0, 0 )
 
+	// Default routing pairs gate→CV adjacent (gate=N, CV=N+1), Disting convention.
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Gate A", 0, 13 )
-	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Gate B", 0, 14 )
-	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Gate C", 0, 15 )
-	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "CV A",   0, 16 )
-	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "CV B",   0, 17 )
+	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Gate B", 0, 15 )
+	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Gate C", 0, 17 )
+	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "CV A",   0, 14 )
+	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "CV B",   0, 16 )
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "CV C",   0, 18 )
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Min",    0, 0 )
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Mid",    0, 0 )
@@ -414,16 +421,20 @@ static const uint8_t pageVoiceA[] = { kParamWanderA, kParamStepsA, kParamSleepA,
 static const uint8_t pageVoiceB[] = { kParamWanderB, kParamStepsB, kParamSleepB, kParamProbB };
 static const uint8_t pageVoiceC[] = { kParamWanderC, kParamStepsC, kParamSleepC, kParamProbC };
 static const uint8_t pageRouting[] = {
+	// Voice outputs first, paired gate → CV per voice
+	kParamGateAOut, kParamCVAOut,
+	kParamGateBOut, kParamCVBOut,
+	kParamGateCOut, kParamCVCOut,
+	// Aggregate outputs
+	kParamMinOut, kParamMidOut, kParamMaxOut,
+	// Inputs
 	kParamClockA, kParamClockB, kParamClockC, kParamResetIn,
 	kParamRootCV, kParamScaleCV, kParamStepsCV, kParamSlewCV,
 	kParamWanderACV, kParamWanderBCV, kParamWanderCCV,
 	kParamStepsACV, kParamStepsBCV, kParamStepsCCV,
 	kParamSleepACV, kParamSleepBCV, kParamSleepCCV,
-	kParamProbACV,  kParamProbBCV,  kParamProbCCV,
+	kParamProbACV, kParamProbBCV, kParamProbCCV,
 	kParamRandomizeIn,
-	kParamGateAOut, kParamGateBOut, kParamGateCOut,
-	kParamCVAOut,   kParamCVBOut,   kParamCVCOut,
-	kParamMinOut,   kParamMidOut,   kParamMaxOut,
 };
 
 static const _NT_parameterPage pages[] = {
@@ -667,6 +678,7 @@ _NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
 	alg->selectedStep = 0;
 	alg->focusVoice = 0;
 	alg->currentPage = 0;
+	alg->lastRandomizeNow = -1;  // sentinel so first step() doesn't treat default 0 as an edge
 	for (int v = 0; v < NUM_VOICES; v++) {
 		VoiceState& vs = alg->voices[v];
 		vs.currentStep = 0;
@@ -687,21 +699,6 @@ _NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
 	alg->resetTrigger.reset();
 	alg->randomizeTrigger.reset();
 	return alg;
-}
-
-// ─── parameterChanged ───────────────────────────────────────────────────────
-
-void parameterChanged(_NT_algorithm* self, int p) {
-	_fugueNT* pThis = (_fugueNT*)self;
-	if (p == kParamRandomizeNow && pThis->v[kParamRandomizeNow] != 0) {
-		uint32_t algIdx = NT_algorithmIndex(self);
-		uint32_t off = NT_parameterOffset();
-		randomizePitches(pThis, algIdx, off);
-		// Auto-reset to "Idle" so the param behaves like a momentary action.
-		// The recursive parameterChanged for value 0 hits the guard above and
-		// does nothing.
-		NT_setParameterFromUi(algIdx, kParamRandomizeNow + off, 0);
-	}
 }
 
 // ─── Bus access helpers ──────────────────────────────────────────────────────
@@ -792,6 +789,19 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 	bool minMode = pThis->v[kParamMinMode];
 	bool midMode = pThis->v[kParamMidMode];
 	bool maxMode = pThis->v[kParamMaxMode];
+
+	// UI-driven randomize: fire once on the 0→1 edge of kParamRandomizeNow,
+	// then reset the param back to 0. Doing this here in step() rather than
+	// in parameterChanged avoids re-entrancy crashes from calling
+	// NT_setParameterFromUi inside a parameter-change notification.
+	int rNow = pThis->v[kParamRandomizeNow];
+	if (rNow != 0 && pThis->lastRandomizeNow == 0) {
+		uint32_t algIdx = NT_algorithmIndex(self);
+		uint32_t off = NT_parameterOffset();
+		randomizePitches(pThis, algIdx, off);
+		NT_setParameterFromUi(algIdx, kParamRandomizeNow + off, 0);
+	}
+	pThis->lastRandomizeNow = rNow;
 
 	// Static params for this block
 	int rootBase  = pThis->v[kParamRoot];
@@ -1192,7 +1202,7 @@ static const _NT_factory factory = {
 	.initialise = NULL,
 	.calculateRequirements = calculateRequirements,
 	.construct = construct,
-	.parameterChanged = parameterChanged,
+	.parameterChanged = NULL,
 	.step = step,
 	.draw = draw,
 	.midiRealtime = NULL,
