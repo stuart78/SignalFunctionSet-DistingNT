@@ -1,0 +1,8 @@
+modules/**/plugins/
+*.o
+*.elf
+*.bin
+*.hex
+.DS_Store
+*.swp
+*~
