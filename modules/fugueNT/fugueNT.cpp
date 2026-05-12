@@ -784,14 +784,18 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 			}
 		}
 
-		// Randomize trigger: scramble all 8 pitches
+		// Randomize trigger: scramble all 8 pitches.
+		// NT_setParameterFromUi works from any context and is the pattern used
+		// by every API example; NT_setParameterFromAudio appears to be unused
+		// elsewhere and didn't propagate changes in testing.
 		float rndV = randIn ? randIn[f] : 0.f;
 		if (pThis->randomizeTrigger.process(rndV)) {
+			uint32_t algIdx = NT_algorithmIndex(self);
+			uint32_t off = NT_parameterOffset();
 			for (int s = 0; s < NUM_STEPS; s++) {
 				uint32_t r = xorshift32(pThis->probRng);
 				int16_t val = (int16_t)(r % 1001);
-				NT_setParameterFromAudio(NT_algorithmIndex(self),
-					STEP_PITCH(s) + NT_parameterOffset(), val);
+				NT_setParameterFromUi(algIdx, STEP_PITCH(s) + off, val);
 			}
 		}
 
@@ -997,13 +1001,28 @@ bool draw(_NT_algorithm* self) {
 			}
 		}
 
-		// Gate dots below the bar
-		int dotY = gridY1 + 4;
+		// Gate A/B/C boxes below the bar.
+		// Filled rect when voice's gate is enabled on this step, outline only when off.
+		const int boxY0 = gridY1 + 1;    // 47
+		const int boxY1 = boxY0 + 7;     // 54  (8-pixel-tall box)
+		const int boxW  = 7;
+		const int boxGap = 1;
+		const int boxesTotal = NUM_VOICES * boxW + (NUM_VOICES - 1) * boxGap;
+		const int boxesX0 = x + (colW - boxesTotal) / 2;
 		for (int v = 0; v < NUM_VOICES; v++) {
 			bool on = pThis->v[STEP_GATE(s, v)] > 0;
-			int dx = x + 6 + v * 8;
-			NT_drawShapeI(kNT_rectangle, dx, dotY + v, dx + 2, dotY + v + 2,
-				on ? 15 : 3);
+			int bx0 = boxesX0 + v * (boxW + boxGap);
+			int bx1 = bx0 + boxW - 1;
+			char letter[2] = { (char)('A' + v), 0 };
+			int cx = bx0 + boxW / 2 + 1;  // tiny-text centre needs +1 nudge
+			int by = boxY1 - 1;  // baseline for tiny font inside box
+			if (on) {
+				NT_drawShapeI(kNT_rectangle, bx0, boxY0, bx1, boxY1, 12);
+				NT_drawText(cx, by, letter, 0, kNT_textCentre, kNT_textTiny);
+			} else {
+				NT_drawShapeI(kNT_box, bx0, boxY0, bx1, boxY1, 6);
+				NT_drawText(cx, by, letter, 10, kNT_textCentre, kNT_textTiny);
+			}
 		}
 	}
 
@@ -1018,7 +1037,7 @@ bool draw(_NT_algorithm* self) {
 		if (pThis->voices[v].sleeping) { line[p++] = ' '; line[p++] = 'z'; }
 		else if (pThis->voices[v].probGateSuppress) { line[p++] = ' '; line[p++] = '?'; }
 		line[p] = 0;
-		NT_drawText(2 + v * 86, 60, line, 12, kNT_textLeft, kNT_textTiny);
+		NT_drawText(2 + v * 86, 63, line, 12, kNT_textLeft, kNT_textTiny);
 	}
 
 	return true;  // suppress standard parameter line
