@@ -250,6 +250,9 @@ enum {
 	kParamWanderB, kParamStepsB, kParamSleepB, kParamProbB,
 	kParamWanderC, kParamStepsC, kParamSleepC, kParamProbC,
 
+	// UI-triggered actions (auto-reset after firing).
+	kParamRandomizeNow,
+
 	NUM_PARAMS
 };
 
@@ -280,6 +283,7 @@ static char const * const enumOnOff[] = { "Off", "On" };
 static char const * const enumSleep[] = {
 	"0", "1", "2", "4", "5", "8", "16", "32", "48", "64"
 };
+static char const * const enumRunIdle[] = { "Idle", "Run" };
 
 // ─── Parameter table ─────────────────────────────────────────────────────────
 
@@ -380,6 +384,9 @@ static const _NT_parameter parameters[] = {
 	{ .name = "Steps C",       .min = 1,  .max = 8,   .def = 8,  .unit = kNT_unitNone,    .scaling = 0,                .enumStrings = NULL },
 	{ .name = "Sleep C",       .min = 0,  .max = 9,   .def = 0,  .unit = kNT_unitEnum,    .scaling = 0,                .enumStrings = enumSleep },
 	{ .name = "Prob C",        .min = 0,  .max = 100, .def = 100,.unit = kNT_unitPercent, .scaling = 0,                .enumStrings = NULL },
+
+	// UI action: set to "Run" to scramble all 8 step pitches; auto-resets to "Idle".
+	{ .name = "Randomize Now", .min = 0,  .max = 1,   .def = 0,  .unit = kNT_unitEnum,    .scaling = 0,                .enumStrings = enumRunIdle },
 };
 
 // ─── Parameter pages ─────────────────────────────────────────────────────────
@@ -387,6 +394,7 @@ static const _NT_parameter parameters[] = {
 static const uint8_t pageGlobal[] = {
 	kParamRoot, kParamScale, kParamSteps, kParamSlew,
 	kParamFaderRange, kParamHarmonicLock, kParamSampleHold,
+	kParamRandomizeNow,
 };
 static const uint8_t pageSteps[] = {
 	kParamStep1Pitch, kParamStep2Pitch, kParamStep3Pitch, kParamStep4Pitch,
@@ -629,6 +637,16 @@ static void advanceVoice(_fugueNT* pThis, int voiceIdx,
 	}
 }
 
+// ─── Randomize helper ────────────────────────────────────────────────────────
+
+static void randomizePitches(_fugueNT* pThis, uint32_t algIdx, uint32_t off) {
+	for (int s = 0; s < NUM_STEPS; s++) {
+		uint32_t r = xorshift32(pThis->probRng);
+		int16_t val = (int16_t)(r % 1001);
+		NT_setParameterFromUi(algIdx, STEP_PITCH(s) + off, val);
+	}
+}
+
 // ─── Construct / parameter-changed ───────────────────────────────────────────
 
 void calculateRequirements(_NT_algorithmRequirements& req, const int32_t* /*specifications*/) {
@@ -669,6 +687,21 @@ _NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
 	alg->resetTrigger.reset();
 	alg->randomizeTrigger.reset();
 	return alg;
+}
+
+// ─── parameterChanged ───────────────────────────────────────────────────────
+
+void parameterChanged(_NT_algorithm* self, int p) {
+	_fugueNT* pThis = (_fugueNT*)self;
+	if (p == kParamRandomizeNow && pThis->v[kParamRandomizeNow] != 0) {
+		uint32_t algIdx = NT_algorithmIndex(self);
+		uint32_t off = NT_parameterOffset();
+		randomizePitches(pThis, algIdx, off);
+		// Auto-reset to "Idle" so the param behaves like a momentary action.
+		// The recursive parameterChanged for value 0 hits the guard above and
+		// does nothing.
+		NT_setParameterFromUi(algIdx, kParamRandomizeNow + off, 0);
+	}
 }
 
 // ─── Bus access helpers ──────────────────────────────────────────────────────
@@ -785,18 +818,9 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 		}
 
 		// Randomize trigger: scramble all 8 pitches.
-		// NT_setParameterFromUi works from any context and is the pattern used
-		// by every API example; NT_setParameterFromAudio appears to be unused
-		// elsewhere and didn't propagate changes in testing.
 		float rndV = randIn ? randIn[f] : 0.f;
 		if (pThis->randomizeTrigger.process(rndV)) {
-			uint32_t algIdx = NT_algorithmIndex(self);
-			uint32_t off = NT_parameterOffset();
-			for (int s = 0; s < NUM_STEPS; s++) {
-				uint32_t r = xorshift32(pThis->probRng);
-				int16_t val = (int16_t)(r % 1001);
-				NT_setParameterFromUi(algIdx, STEP_PITCH(s) + off, val);
-			}
+			randomizePitches(pThis, NT_algorithmIndex(self), NT_parameterOffset());
 		}
 
 		// Per-voice processing
@@ -1159,7 +1183,7 @@ static const _NT_factory factory = {
 	.initialise = NULL,
 	.calculateRequirements = calculateRequirements,
 	.construct = construct,
-	.parameterChanged = NULL,
+	.parameterChanged = parameterChanged,
 	.step = step,
 	.draw = draw,
 	.midiRealtime = NULL,
