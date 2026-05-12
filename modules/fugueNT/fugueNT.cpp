@@ -289,7 +289,11 @@ static char const * const enumOnOff[] = { "Off", "On" };
 static char const * const enumSleep[] = {
 	"0", "1", "2", "4", "5", "8", "16", "32", "48", "64"
 };
-static char const * const enumRunIdle[] = { "Idle", "Run" };
+// Used by the Randomize Now action: flip Off→On to fire once, then back
+// to Off to re-arm. We can't auto-reset to Off from step() — calling
+// NT_setParameterFromUi to write the same param that just changed re-enters
+// the parameter system and crashes the module.
+static char const * const enumOffOn[] = { "Off", "On" };
 
 // ─── Parameter table ─────────────────────────────────────────────────────────
 
@@ -392,8 +396,9 @@ static const _NT_parameter parameters[] = {
 	{ .name = "Sleep C",       .min = 0,  .max = 9,   .def = 0,  .unit = kNT_unitEnum,    .scaling = 0,                .enumStrings = enumSleep },
 	{ .name = "Prob C",        .min = 0,  .max = 100, .def = 100,.unit = kNT_unitPercent, .scaling = 0,                .enumStrings = NULL },
 
-	// UI action: set to "Run" to scramble all 8 step pitches; auto-resets to "Idle".
-	{ .name = "Randomize Now", .min = 0,  .max = 1,   .def = 0,  .unit = kNT_unitEnum,    .scaling = 0,                .enumStrings = enumRunIdle },
+	// UI action: flip Off→On to scramble all 8 step pitches. Flip back to Off
+	// to re-arm. (No auto-reset — see enumOffOn comment.)
+	{ .name = "Randomize Now", .min = 0,  .max = 1,   .def = 0,  .unit = kNT_unitEnum,    .scaling = 0,                .enumStrings = enumOffOn },
 };
 
 // ─── Parameter pages ─────────────────────────────────────────────────────────
@@ -791,16 +796,13 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 	bool midMode = pThis->v[kParamMidMode];
 	bool maxMode = pThis->v[kParamMaxMode];
 
-	// UI-driven randomize: fire once on the 0→1 edge of kParamRandomizeNow,
-	// then reset the param back to 0. Doing this here in step() rather than
-	// in parameterChanged avoids re-entrancy crashes from calling
-	// NT_setParameterFromUi inside a parameter-change notification.
+	// UI-driven randomize: fire once on the Off→On edge of kParamRandomizeNow.
+	// The user re-arms by flipping it back to Off; we deliberately do NOT
+	// auto-reset because writing to the same param that just changed re-enters
+	// the parameter system and crashes the module.
 	int rNow = pThis->v[kParamRandomizeNow];
 	if (rNow != 0 && pThis->lastRandomizeNow == 0) {
-		uint32_t algIdx = NT_algorithmIndex(self);
-		uint32_t off = NT_parameterOffset();
-		randomizePitches(pThis, algIdx, off);
-		NT_setParameterFromUi(algIdx, kParamRandomizeNow + off, 0);
+		randomizePitches(pThis, NT_algorithmIndex(self), NT_parameterOffset());
 	}
 	pThis->lastRandomizeNow = rNow;
 
