@@ -970,6 +970,7 @@ bool draw(_NT_algorithm* self) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	int scaleIdx = pThis->v[kParamScale];
 	int root = pThis->v[kParamRoot];
+	float faderRange = RANGE_VALUES[pThis->v[kParamFaderRange]];
 	bool hLock = pThis->v[kParamHarmonicLock];
 	bool sh    = pThis->v[kParamSampleHold];
 
@@ -1016,6 +1017,14 @@ bool draw(_NT_algorithm* self) {
 			NT_drawShapeI(kNT_rectangle, x + 1, gridY1 - 1 - barH, x + colW - 1, gridY1 - 1,
 				inRange ? 10 : 4);
 		}
+
+		// Quantized note label, top-right inside the column.
+		// Drawn after the bar so it overlays at high pitches.
+		float quantVolt = faderToVoltage(pitch, root, scaleIdx, faderRange);
+		char noteBuf[8];
+		noteName(quantVolt, noteBuf);
+		NT_drawText(x + colW - 2, gridY0 + 6, noteBuf,
+			inRange ? 15 : 6, kNT_textRight, kNT_textTiny);
 
 		// Per-voice playhead markers above the column
 		for (int v = 0; v < NUM_VOICES; v++) {
