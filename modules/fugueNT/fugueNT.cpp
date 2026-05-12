@@ -942,7 +942,6 @@ static bool draw(_NT_algorithm* self) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	int scaleIdx = pThis->v[kParamScale];
 	int root = pThis->v[kParamRoot];
-	float faderRange = RANGE_VALUES[pThis->v[kParamFaderRange]];
 	bool hLock = pThis->v[kParamHarmonicLock];
 	bool sh    = pThis->v[kParamSampleHold];
 
