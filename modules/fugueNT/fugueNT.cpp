@@ -631,7 +631,7 @@ static void advanceVoice(_fugueNT* pThis, int voiceIdx,
 
 // ─── Construct / parameter-changed ───────────────────────────────────────────
 
-static void calculateRequirements(_NT_algorithmRequirements& req, const int32_t* /*specifications*/) {
+void calculateRequirements(_NT_algorithmRequirements& req, const int32_t* /*specifications*/) {
 	req.numParameters = NUM_PARAMS;
 	req.sram = sizeof(_fugueNT);
 	req.dram = 0;
@@ -639,9 +639,9 @@ static void calculateRequirements(_NT_algorithmRequirements& req, const int32_t*
 	req.itc = 0;
 }
 
-static _NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
-                                const _NT_algorithmRequirements& /*req*/,
-                                const int32_t* /*specifications*/) {
+_NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
+                         const _NT_algorithmRequirements& /*req*/,
+                         const int32_t* /*specifications*/) {
 	_fugueNT* alg = new (ptrs.sram) _fugueNT();
 	alg->parameters = parameters;
 	alg->parameterPages = &parameterPages;
@@ -696,7 +696,7 @@ static inline const float* normalledClock(int voiceIdx, const float* a, const fl
 
 // ─── step ────────────────────────────────────────────────────────────────────
 
-static void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
+void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	int numFrames = numFramesBy4 * 4;
 	const float sampleTime = 1.f / (float)NT_globals.sampleRate;
@@ -938,7 +938,7 @@ static void noteName(float voltage, char* out) {
 	out[pos] = 0;
 }
 
-static bool draw(_NT_algorithm* self) {
+bool draw(_NT_algorithm* self) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	int scaleIdx = pThis->v[kParamScale];
 	int root = pThis->v[kParamRoot];
@@ -1026,12 +1026,12 @@ static bool draw(_NT_algorithm* self) {
 
 // ─── Custom UI ───────────────────────────────────────────────────────────────
 
-static uint32_t hasCustomUi(_NT_algorithm* /*self*/) {
+uint32_t hasCustomUi(_NT_algorithm* /*self*/) {
 	return kNT_potL | kNT_potC | kNT_encoderL | kNT_encoderR
 	     | kNT_button1 | kNT_button2;
 }
 
-static void customUi(_NT_algorithm* self, const _NT_uiData& data) {
+void customUi(_NT_algorithm* self, const _NT_uiData& data) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	uint32_t algIdx = NT_algorithmIndex(self);
 	uint32_t off = NT_parameterOffset();
@@ -1077,7 +1077,7 @@ static void customUi(_NT_algorithm* self, const _NT_uiData& data) {
 	}
 }
 
-static void setupUi(_NT_algorithm* self, _NT_float3& pots) {
+void setupUi(_NT_algorithm* self, _NT_float3& pots) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	pots[0] = (float)pThis->v[STEP_PITCH(pThis->selectedStep)] / 1000.f;
 	pots[1] = (float)pThis->v[VOICE_WANDER(pThis->focusVoice)] / 100.f;
@@ -1089,7 +1089,7 @@ static void setupUi(_NT_algorithm* self, _NT_float3& pots) {
 
 static const int kSchemaVersion = 1;
 
-static void serialise(_NT_algorithm* self, _NT_jsonStream& stream) {
+void serialise(_NT_algorithm* self, _NT_jsonStream& stream) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	stream.addMemberName("schemaVersion");
 	stream.addNumber(kSchemaVersion);
@@ -1101,7 +1101,7 @@ static void serialise(_NT_algorithm* self, _NT_jsonStream& stream) {
 	stream.addNumber(pThis->currentPage);
 }
 
-static bool deserialise(_NT_algorithm* self, _NT_jsonParse& parse) {
+bool deserialise(_NT_algorithm* self, _NT_jsonParse& parse) {
 	_fugueNT* pThis = (_fugueNT*)self;
 	int num;
 	if (!parse.numberOfObjectMembers(num)) return false;
