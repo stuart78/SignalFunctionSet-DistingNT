@@ -189,6 +189,13 @@ struct _fugueNT : public _NT_algorithm {
 	int currentPage;         // 0=main, 1=per-voice
 
 	int lastRandomizeNow;    // edge-detect state for the Randomize Now param
+
+	// Drip-fed parameter writes for randomize. We pre-roll the 8 new pitch
+	// values into pendingPitches[] on the trigger edge, then push them out
+	// at most one per step() block via NT_setParameterFromAudio. Batch
+	// writes from step() are not supported by the host and crash the module.
+	int16_t pendingPitches[NUM_STEPS];
+	int pendingPitchIdx;     // -1 = idle, 0..NUM_STEPS-1 = next to push
 };
 
 // ─── Parameter enum ──────────────────────────────────────────────────────────
@@ -654,14 +661,18 @@ static void advanceVoice(_fugueNT* pThis, int voiceIdx,
 	}
 }
 
-// ─── Randomize helper ────────────────────────────────────────────────────────
+// ─── Randomize queue ─────────────────────────────────────────────────────────
+// Pre-roll 8 random pitch values into struct state. Step() drains the queue
+// at one parameter write per block via NT_setParameterFromAudio — the
+// audio-thread-safe variant, which is what the host expects called from step().
 
-static void randomizePitches(_fugueNT* pThis, uint32_t algIdx, uint32_t off) {
+static void queueRandomize(_fugueNT* pThis) {
+	if (pThis->pendingPitchIdx >= 0) return;  // already in flight; ignore
 	for (int s = 0; s < NUM_STEPS; s++) {
 		uint32_t r = xorshift32(pThis->probRng);
-		int16_t val = (int16_t)(r % 1001);
-		NT_setParameterFromUi(algIdx, STEP_PITCH(s) + off, val);
+		pThis->pendingPitches[s] = (int16_t)(r % 1001);
 	}
+	pThis->pendingPitchIdx = 0;
 }
 
 // ─── Construct / parameter-changed ───────────────────────────────────────────
@@ -685,6 +696,8 @@ _NT_algorithm* construct(const _NT_algorithmMemoryPtrs& ptrs,
 	alg->focusVoice = 0;
 	alg->currentPage = 0;
 	alg->lastRandomizeNow = -1;  // sentinel so first step() doesn't treat default 0 as an edge
+	alg->pendingPitchIdx = -1;
+	for (int s = 0; s < NUM_STEPS; s++) alg->pendingPitches[s] = 0;
 	for (int v = 0; v < NUM_VOICES; v++) {
 		VoiceState& vs = alg->voices[v];
 		vs.currentStep = 0;
@@ -796,15 +809,28 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 	bool midMode = pThis->v[kParamMidMode];
 	bool maxMode = pThis->v[kParamMaxMode];
 
-	// UI-driven randomize: fire once on the Off→On edge of kParamRandomizeNow.
-	// The user re-arms by flipping it back to Off; we deliberately do NOT
-	// auto-reset because writing to the same param that just changed re-enters
-	// the parameter system and crashes the module.
+	// UI-driven randomize: queue on the Off→On edge of kParamRandomizeNow.
+	// User re-arms by flipping back to Off. (Auto-reset would mean writing
+	// to the just-changed param, which crashes the host.)
 	int rNow = pThis->v[kParamRandomizeNow];
 	if (rNow != 0 && pThis->lastRandomizeNow == 0) {
-		randomizePitches(pThis, NT_algorithmIndex(self), NT_parameterOffset());
+		queueRandomize(pThis);
 	}
 	pThis->lastRandomizeNow = rNow;
+
+	// Drain the randomize queue at one parameter write per block. Multiple
+	// writes per block from step() are not supported by the host and crash
+	// the module; this paces the 8 writes out over 8 audio blocks (~11ms at
+	// 64-sample blocks / 48kHz — imperceptible).
+	if (pThis->pendingPitchIdx >= 0 && pThis->pendingPitchIdx < NUM_STEPS) {
+		NT_setParameterFromAudio(NT_algorithmIndex(self),
+			STEP_PITCH(pThis->pendingPitchIdx) + NT_parameterOffset(),
+			pThis->pendingPitches[pThis->pendingPitchIdx]);
+		pThis->pendingPitchIdx++;
+		if (pThis->pendingPitchIdx >= NUM_STEPS) {
+			pThis->pendingPitchIdx = -1;
+		}
+	}
 
 	// Static params for this block
 	int rootBase  = pThis->v[kParamRoot];
@@ -830,10 +856,11 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 			}
 		}
 
-		// Randomize trigger: scramble all 8 pitches.
+		// Randomize trigger: queue the 8 pitch writes. Same queue as the UI
+		// edge — never directly call NT_setParameterFromAudio in this loop.
 		float rndV = randIn ? randIn[f] : 0.f;
 		if (pThis->randomizeTrigger.process(rndV)) {
-			randomizePitches(pThis, NT_algorithmIndex(self), NT_parameterOffset());
+			queueRandomize(pThis);
 		}
 
 		// Per-voice processing
