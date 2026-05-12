@@ -338,43 +338,43 @@ static const _NT_parameter parameters[] = {
 	// Step 1
 	{ .name = "Step 1 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 1 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 1 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 1 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 1 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 1 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 2
 	{ .name = "Step 2 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 2 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 2 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 2 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 2 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 2 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 3
 	{ .name = "Step 3 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 3 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 3 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 3 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 3 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 3 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 4
 	{ .name = "Step 4 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 4 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 4 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 4 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 4 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 4 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 5
 	{ .name = "Step 5 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 5 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 5 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 5 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 5 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 5 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 6
 	{ .name = "Step 6 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 6 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 6 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 6 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 6 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 6 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 7
 	{ .name = "Step 7 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 7 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 7 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 7 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 7 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 7 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 	// Step 8
 	{ .name = "Step 8 Pitch",  .min = 0, .max = 1000, .def = 0, .unit = kNT_unitNone,     .scaling = kNT_scaling1000,  .enumStrings = NULL },
 	{ .name = "Step 8 Gate A", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 8 Gate B", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
-	{ .name = "Step 8 Gate C", .min = 0, .max = 1,    .def = 0, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 8 Gate B", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
+	{ .name = "Step 8 Gate C", .min = 0, .max = 1,    .def = 1, .unit = kNT_unitEnum,     .scaling = 0,                .enumStrings = enumOnOff },
 
 	// Voice A
 	{ .name = "Wander A",      .min = 0,  .max = 100, .def = 0,  .unit = kNT_unitPercent, .scaling = 0,                .enumStrings = NULL },
@@ -408,14 +408,15 @@ static const uint8_t pageSteps[] = {
 	kParamStep5Pitch, kParamStep6Pitch, kParamStep7Pitch, kParamStep8Pitch,
 };
 static const uint8_t pageGates[] = {
-	kParamStep1GateA, kParamStep1GateB, kParamStep1GateC,
-	kParamStep2GateA, kParamStep2GateB, kParamStep2GateC,
-	kParamStep3GateA, kParamStep3GateB, kParamStep3GateC,
-	kParamStep4GateA, kParamStep4GateB, kParamStep4GateC,
-	kParamStep5GateA, kParamStep5GateB, kParamStep5GateC,
-	kParamStep6GateA, kParamStep6GateB, kParamStep6GateC,
-	kParamStep7GateA, kParamStep7GateB, kParamStep7GateC,
-	kParamStep8GateA, kParamStep8GateB, kParamStep8GateC,
+	// Voice A across all 8 steps
+	kParamStep1GateA, kParamStep2GateA, kParamStep3GateA, kParamStep4GateA,
+	kParamStep5GateA, kParamStep6GateA, kParamStep7GateA, kParamStep8GateA,
+	// Voice B
+	kParamStep1GateB, kParamStep2GateB, kParamStep3GateB, kParamStep4GateB,
+	kParamStep5GateB, kParamStep6GateB, kParamStep7GateB, kParamStep8GateB,
+	// Voice C
+	kParamStep1GateC, kParamStep2GateC, kParamStep3GateC, kParamStep4GateC,
+	kParamStep5GateC, kParamStep6GateC, kParamStep7GateC, kParamStep8GateC,
 };
 static const uint8_t pageVoiceA[] = { kParamWanderA, kParamStepsA, kParamSleepA, kParamProbA };
 static const uint8_t pageVoiceB[] = { kParamWanderB, kParamStepsB, kParamSleepB, kParamProbB };
