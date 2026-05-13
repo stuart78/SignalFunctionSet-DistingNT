@@ -1034,13 +1034,19 @@ bool draw(_NT_algorithm* self) {
 	buf[len] = 0;
 	NT_drawText(2, 8, buf, 15, kNT_textLeft, kNT_textNormal);
 
-	// 8-column step grid
+	// Layout — built up from the gate-indicator box size.
+	// Each box fits a tiny-font letter (3x5) with 1px of padding all round.
+	const int boxW = 6;
+	const int boxGap = 1;
+	const int boxesTotal = NUM_VOICES * boxW + (NUM_VOICES - 1) * boxGap;  // 20
+	// Column = 3 boxes + 2px padding each side
+	const int colW = boxesTotal + 4;                                        // 24
+	const int colGap = 4;
+	// Centre the 8-column grid horizontally on the 256px display.
 	const int gridY0 = 14;
 	const int gridY1 = 46;
-	const int colW = 28;
-	const int colGap = 4;
 	const int gridH = gridY1 - gridY0;
-	int x0 = 4;
+	int x0 = (256 - (NUM_STEPS * colW + (NUM_STEPS - 1) * colGap)) / 2;     // 18
 
 	int globalSteps = pThis->v[kParamSteps];
 	for (int s = 0; s < NUM_STEPS; s++) {
@@ -1074,27 +1080,33 @@ bool draw(_NT_algorithm* self) {
 			}
 		}
 
-		// Gate A/B/C boxes below the bar.
-		// Filled rect when voice's gate is enabled on this step, outline only when off.
+		// Gate A/B/C indicators below the bar. Three visual states:
+		//   off:    just the letter, no surround
+		//   on:     letter inside an outlined box
+		//   firing: filled white box, inverse (black) letter
+		// "firing" = voice's playhead is on this step and its gate is currently
+		// outputting high (clock high, not sleeping, not probability-suppressed).
 		const int boxY0 = gridY1 + 1;    // 47
 		const int boxY1 = boxY0 + 7;     // 54  (8-pixel-tall box)
-		const int boxW  = 7;
-		const int boxGap = 1;
-		const int boxesTotal = NUM_VOICES * boxW + (NUM_VOICES - 1) * boxGap;
 		const int boxesX0 = x + (colW - boxesTotal) / 2;
 		for (int v = 0; v < NUM_VOICES; v++) {
-			bool on = pThis->v[STEP_GATE(s, v)] > 0;
+			bool gateOn = pThis->v[STEP_GATE(s, v)] > 0;
+			const VoiceState& voice = pThis->voices[v];
+			bool firing = gateOn && (voice.currentStep == s) && voice.clockHigh
+			           && !voice.sleeping && !voice.probGateSuppress;
 			int bx0 = boxesX0 + v * (boxW + boxGap);
 			int bx1 = bx0 + boxW - 1;
 			char letter[2] = { (char)('A' + v), 0 };
 			int cx = bx0 + boxW / 2 + 1;  // tiny-text centre needs +1 nudge
-			int by = boxY1 - 1;  // baseline for tiny font inside box
-			if (on) {
-				NT_drawShapeI(kNT_rectangle, bx0, boxY0, bx1, boxY1, 12);
+			int by = boxY1 - 1;           // baseline for tiny font inside box
+			if (firing) {
+				NT_drawShapeI(kNT_rectangle, bx0, boxY0, bx1, boxY1, 15);
 				NT_drawText(cx, by, letter, 0, kNT_textCentre, kNT_textTiny);
+			} else if (gateOn) {
+				NT_drawShapeI(kNT_box, bx0, boxY0, bx1, boxY1, 12);
+				NT_drawText(cx, by, letter, 15, kNT_textCentre, kNT_textTiny);
 			} else {
-				NT_drawShapeI(kNT_box, bx0, boxY0, bx1, boxY1, 6);
-				NT_drawText(cx, by, letter, 10, kNT_textCentre, kNT_textTiny);
+				NT_drawText(cx, by, letter, 8, kNT_textCentre, kNT_textTiny);
 			}
 		}
 	}
