@@ -1080,34 +1080,18 @@ bool draw(_NT_algorithm* self) {
 			}
 		}
 
-		// Gate A/B/C indicators below the bar. Three visual states:
-		//   off:    just the letter, no surround
-		//   on:     letter inside an outlined box
-		//   firing: filled white box, inverse (black) letter
-		// "firing" = voice's playhead is on this step and its gate is currently
-		// outputting high (clock high, not sleeping, not probability-suppressed).
-		const int boxY0 = gridY1 + 1;    // 47
-		const int boxY1 = boxY0 + 7;     // 54  (8-pixel-tall box)
-		const int boxesX0 = x + (colW - boxesTotal) / 2;
+		// Gate A/B/C indicators below the bar. Bright letter when this voice's
+		// gate is enabled on this step; dim letter when off. The playhead bar
+		// above the column already signals which step is currently firing, so
+		// these don't need a flash state.
+		const int letterY = gridY1 + 7;   // tiny-font baseline
+		const int letterRowX0 = x + (colW - boxesTotal) / 2;
 		for (int v = 0; v < NUM_VOICES; v++) {
 			bool gateOn = pThis->v[STEP_GATE(s, v)] > 0;
-			const VoiceState& voice = pThis->voices[v];
-			bool firing = gateOn && (voice.currentStep == s) && voice.clockHigh
-			           && !voice.sleeping && !voice.probGateSuppress;
-			int bx0 = boxesX0 + v * (boxW + boxGap);
-			int bx1 = bx0 + boxW - 1;
+			int lx = letterRowX0 + v * (boxW + boxGap) + boxW / 2 + 1;
 			char letter[2] = { (char)('A' + v), 0 };
-			int cx = bx0 + boxW / 2 + 1;  // tiny-text centre needs +1 nudge
-			int by = boxY1 - 1;           // baseline for tiny font inside box
-			if (firing) {
-				NT_drawShapeI(kNT_rectangle, bx0, boxY0, bx1, boxY1, 15);
-				NT_drawText(cx, by, letter, 0, kNT_textCentre, kNT_textTiny);
-			} else if (gateOn) {
-				NT_drawShapeI(kNT_box, bx0, boxY0, bx1, boxY1, 12);
-				NT_drawText(cx, by, letter, 15, kNT_textCentre, kNT_textTiny);
-			} else {
-				NT_drawText(cx, by, letter, 8, kNT_textCentre, kNT_textTiny);
-			}
+			NT_drawText(lx, letterY, letter,
+				gateOn ? 15 : 3, kNT_textCentre, kNT_textTiny);
 		}
 	}
 
