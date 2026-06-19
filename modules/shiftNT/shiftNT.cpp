@@ -9,12 +9,13 @@
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-static const int NUM_OUTS = 4;
-static const int MAX_N    = 16;
+static const int NUM_OUTS  = 4;
+static const int MAX_N     = 16;   // delay-line / history ring size
+static const int MAX_STEPS = 15;   // max selectable delay in steps; 0 = passthrough
 
-// Per-lane clock divider values, selected by a 5-position enum parameter.
-static const int DIV_VALUES[5] = { 1, 2, 3, 4, 8 };
-static const int NUM_DIV_VALUES = 5;
+// Per-lane clock divider values, selected by an enum parameter.
+static const int DIV_VALUES[6] = { 1, 2, 3, 4, 5, 8 };
+static const int NUM_DIV_VALUES = 6;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -122,7 +123,7 @@ enum {
 // ─── Enum strings ────────────────────────────────────────────────────────────
 
 static char const * const enumMode[]  = { "Parallel", "Cascade" };
-static char const * const enumDiv[]   = { "/1", "/2", "/3", "/4", "/8" };
+static char const * const enumDiv[]   = { "/1", "/2", "/3", "/4", "/5", "/8" };
 static char const * const enumOffOn[] = { "Off", "On" };
 
 // ─── Parameter table ─────────────────────────────────────────────────────────
@@ -149,22 +150,22 @@ static const _NT_parameter parameters[] = {
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Jumble Gate",  0, 0 )
 	NT_PARAMETER_CV_OUTPUT_WITH_MODE( "Jumble CV",    0, 0 )
 
-	// Per-lane: N, Mode, Div
-	{ .name = "N A",    .min = 1, .max = 16, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-	{ .name = "Mode A", .min = 0, .max = 1,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
-	{ .name = "Div A",  .min = 0, .max = 4,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
+	// Per-lane: N (0 = passthrough), Mode, Div
+	{ .name = "N A",    .min = 0, .max = MAX_STEPS,        .def = 0, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
+	{ .name = "Mode A", .min = 0, .max = 1,                .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
+	{ .name = "Div A",  .min = 0, .max = NUM_DIV_VALUES-1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
 
-	{ .name = "N B",    .min = 1, .max = 16, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-	{ .name = "Mode B", .min = 0, .max = 1,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
-	{ .name = "Div B",  .min = 0, .max = 4,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
+	{ .name = "N B",    .min = 0, .max = MAX_STEPS,        .def = 0, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
+	{ .name = "Mode B", .min = 0, .max = 1,                .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
+	{ .name = "Div B",  .min = 0, .max = NUM_DIV_VALUES-1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
 
-	{ .name = "N C",    .min = 1, .max = 16, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-	{ .name = "Mode C", .min = 0, .max = 1,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
-	{ .name = "Div C",  .min = 0, .max = 4,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
+	{ .name = "N C",    .min = 0, .max = MAX_STEPS,        .def = 0, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
+	{ .name = "Mode C", .min = 0, .max = 1,                .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
+	{ .name = "Div C",  .min = 0, .max = NUM_DIV_VALUES-1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
 
-	{ .name = "N D",    .min = 1, .max = 16, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-	{ .name = "Mode D", .min = 0, .max = 1,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
-	{ .name = "Div D",  .min = 0, .max = 4,  .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
+	{ .name = "N D",    .min = 0, .max = MAX_STEPS,        .def = 0, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
+	{ .name = "Mode D", .min = 0, .max = 1,                .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumMode },
+	{ .name = "Div D",  .min = 0, .max = NUM_DIV_VALUES-1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = enumDiv },
 
 	// UI action: Off→On clears state (same effect as Reset trigger).
 	// No auto-reset (writing same param crashes the host).
@@ -344,12 +345,14 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 
 		if (clockRose) {
 			// Compute effective N per lane (knob + global N CV + per-lane Step CV).
-			float nCvOffset = nCV ? nCV[f] * (float)MAX_N / 5.f : 0.f;
+			// CV scaling is ±5V → ±MAX_STEPS so a full ±5V sweep covers the whole
+			// 0..MAX_STEPS range. Clamped to [0, MAX_STEPS]; 0 = passthrough.
+			float nCvOffset = nCV ? nCV[f] * (float)MAX_STEPS / 5.f : 0.f;
 			int targetN[NUM_OUTS];
 			for (int i = 0; i < NUM_OUTS; i++) {
 				float n = (float)nPot[i] + nCvOffset;
-				if (stepCV[i]) n += stepCV[i][f] * (float)MAX_N / 5.f;
-				targetN[i] = clampi((int)roundf(n), 1, MAX_N);
+				if (stepCV[i]) n += stepCV[i][f] * (float)MAX_STEPS / 5.f;
+				targetN[i] = clampi((int)roundf(n), 0, MAX_STEPS);
 			}
 
 			float inCV = cvIn ? cvIn[f] : 0.f;
@@ -369,24 +372,43 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 					if (cascade[i] && i > 0) {
 						// Cascade tape loop. Read continuously at lane-clock
 						// rate; write only when parent fired this sample.
-						int rIdx = p->readIdx[i] % N;
-						p->held[i] = p->delayLine[i][rIdx];
-						p->readIdx[i] = (rIdx + 1) % N;
+						// N==0 = zero-length loop: pass the parent straight through.
+						if (N == 0) {
+							p->held[i] = p->held[i - 1];
+							if (tickFired[i - 1]) {
+								p->historyLine[i][p->historyWriteIdx[i]] = p->held[i - 1];
+								p->historyWriteIdx[i] = (p->historyWriteIdx[i] + 1) % MAX_N;
+								tickFired[i] = true;
+							}
+						} else {
+							int rIdx = p->readIdx[i] % N;
+							p->held[i] = p->delayLine[i][rIdx];
+							p->readIdx[i] = (rIdx + 1) % N;
 
-						if (tickFired[i - 1]) {
-							int wIdx = p->writeIdx[i] % N;
-							p->delayLine[i][wIdx] = p->held[i - 1];
-							p->writeIdx[i] = (wIdx + 1) % N;
-							p->historyLine[i][p->historyWriteIdx[i]] = p->held[i - 1];
-							p->historyWriteIdx[i] = (p->historyWriteIdx[i] + 1) % MAX_N;
-							tickFired[i] = true;
+							if (tickFired[i - 1]) {
+								int wIdx = p->writeIdx[i] % N;
+								p->delayLine[i][wIdx] = p->held[i - 1];
+								p->writeIdx[i] = (wIdx + 1) % N;
+								p->historyLine[i][p->historyWriteIdx[i]] = p->held[i - 1];
+								p->historyWriteIdx[i] = (p->historyWriteIdx[i] + 1) % MAX_N;
+								tickFired[i] = true;
+							}
 						}
 					} else {
-						// Parallel (or cascade-on-A): N-step delay line.
-						int wIdx = p->writeIdx[i] % N;
-						p->held[i] = p->delayLine[i][wIdx];
-						p->delayLine[i][wIdx] = inCV;
-						p->writeIdx[i] = (wIdx + 1) % N;
+						// Parallel (or cascade-on-A): read from the always-
+						// written full-depth history ring at lookback = N,
+						// then write the current input. Reading from the
+						// continuously-written ring (rather than an N-sized
+						// buffer) keeps the delay correct even when N is
+						// modulated on the fly — an N-sized buffer's slots
+						// go stale as N changes and the output freezes.
+						// N==0 = no delay: input passes straight through.
+						if (N == 0) {
+							p->held[i] = inCV;
+						} else {
+							int rIdx = (p->historyWriteIdx[i] - N + MAX_N) % MAX_N;
+							p->held[i] = p->historyLine[i][rIdx];
+						}
 						p->historyLine[i][p->historyWriteIdx[i]] = inCV;
 						p->historyWriteIdx[i] = (p->historyWriteIdx[i] + 1) % MAX_N;
 						tickFired[i] = true;

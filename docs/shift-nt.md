@@ -18,9 +18,9 @@ The full-depth history ring is mirrored to in parallel with the active buffer. W
 ### Inputs (8)
 1. CV (data, sampled on each tap fire)
 2. Clock (advances all taps in parallel, and the cascade chain root)
-3. N CV (±5V → ±16, summed into every N pot)
+3. N CV (±5V → ±15, summed into every N pot)
 4. Reset (clears all counters, buffers, and held values)
-5. Step CV A (±5V → ±16, summed with N pot A)
+5. Step CV A (±5V → ±15, summed with N pot A)
 6. Step CV B
 7. Step CV C
 8. Step CV D
@@ -40,9 +40,9 @@ The full-depth history ring is mirrored to in parallel with the active buffer. W
 ## Parameters
 
 ### Per lane (×4)
-- **N** — step count, 1–16, integer
+- **N** — step count, 0–15, integer. `0` = passthrough (output = input, no delay).
 - **Mode** — Parallel / Cascade (enum)
-- **Div** — input clock divider, 5 positions: `/1`, `/2`, `/3`, `/4`, `/8`
+- **Div** — input clock divider, 6 positions: `/1`, `/2`, `/3`, `/4`, `/5`, `/8`
 
 ### Action
 - **Reset Now** — Off → On flips trigger a full clear (same effect as the Reset trigger input). Flip back to Off to re-arm. (No auto-reset on this enum; writing the same parameter that just changed crashes the host.)
@@ -71,8 +71,9 @@ All state in **SRAM**. ~1 KB total — 4 × 16 floats for `delayLine`, 4 × 16 f
 All ported verbatim from `src/shift.cpp`:
 
 - Per-lane divider counter wraps at the `laneDiv` value, gating all per-lane work.
-- Parallel: ring buffer with read-then-write at the same index (delay line of length N).
-- Cascade: separate `readIdx` (advances at lane-clock rate) and `writeIdx` (advances only when parent fires). Pulls the *parent's* held value, not the global CV.
+- Parallel: reads from the always-written full-depth history ring at lookback = N, then writes the current input. Using the continuously-written ring (rather than an N-sized buffer) keeps the delay correct even when N is modulated on the fly via the Step CV — an N-sized buffer's slots go stale as N changes and the output reads frozen.
+- Cascade: separate `readIdx` (advances at lane-clock rate) and `writeIdx` (advances only when parent fires) into the N-slot active buffer. Pulls the *parent's* held value, not the global CV.
+- N = 0 in either mode: clean passthrough. Parallel outputs the current input; cascade outputs the parent value.
 - Cascade on lane A falls back to Parallel.
 - Disconnected CV input: lane reads from the full-depth `historyLine[16]` ring at lane-clock rate, regardless of N.
 - Gates fire on the lane-clock tick whether or not CV is connected.
