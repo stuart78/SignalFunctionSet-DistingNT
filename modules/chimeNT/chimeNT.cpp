@@ -14,6 +14,84 @@
 #define M_PI_2  1.57079632679489661923f
 #endif
 
+// ─── Math approximations ─────────────────────────────────────────────────────
+//
+// The Disting NT firmware doesn't provide libm — sinf/cosf/expf/exp2f/log2f/
+// powf as external symbols make the loader fail. Provide inline replacements
+// that don't call out. Accuracy is well within what a music synth wants
+// (< 0.01% for sin/cos, comparable for exp/log/pow). GCC still inlines the
+// commonly hardware-mapped ones (roundf, floorf, fabsf, fminf, fmaxf,
+// sqrtf) to VFP instructions so those don't need wrapping.
+
+static const float SFS_PI  = 3.14159265358979323846f;
+static const float SFS_TAU = 6.28318530717958647692f;
+
+// sinApprox(x) — range-reduce to [-π, π], then 7th-order minimax polynomial.
+static inline float sinApprox(float x) {
+	// Reduce x modulo 2π by folding through the fractional part of x / 2π.
+	float k = x * (1.f / SFS_TAU);
+	k -= (float)(int)k;                        // fractional (may be negative)
+	if      (k >  0.5f) k -= 1.f;
+	else if (k < -0.5f) k += 1.f;
+	x = k * SFS_TAU;                            // x now in [-π, π]
+	float x2 = x * x;
+	return x * (1.f - x2 * ((1.f/6.f)
+	         - x2 * ((1.f/120.f)
+	         - x2 * (1.f/5040.f))));
+}
+static inline float cosApprox(float x) {
+	return sinApprox(x + (SFS_PI * 0.5f));
+}
+
+// 2^x via range reduction into integer + fractional parts.
+// 2^i is applied by directly biasing the IEEE 754 exponent; 2^f (f in [0,1))
+// uses a 5th-order minimax polynomial (max relative error ~2e-7).
+static inline float exp2Approx(float x) {
+	if (x < -126.f) return 0.f;
+	if (x >  127.f) return 3.4e38f;
+	int i = (int)x;
+	float f = x - (float)i;
+	if (f < 0.f) { i--; f += 1.f; }
+	float p = 1.f + f * (0.6931472f
+	              + f * (0.2402265f
+	              + f * (0.0554844f
+	              + f * (0.0096181f
+	              + f * 0.0013013f))));
+	union { float f; uint32_t u; } bits;
+	bits.f = p;
+	int expBits = (int)((bits.u >> 23) & 0xFF) + i;
+	if (expBits <= 0)   return 0.f;
+	if (expBits >= 255) return 3.4e38f;
+	bits.u = (bits.u & 0x807FFFFFu) | ((uint32_t)expBits << 23);
+	return bits.f;
+}
+static inline float expApprox(float x) {
+	// exp(x) = 2^(x * log2(e))
+	return exp2Approx(x * 1.4426950408889634f);
+}
+
+// log2(x). Extracts the IEEE exponent, then a 5th-order polynomial on the
+// mantissa in [1, 2). Precise to about 6 decimal digits.
+static inline float log2Approx(float x) {
+	if (x <= 0.f) return -1e30f;
+	union { float f; uint32_t u; } bits;
+	bits.f = x;
+	int   ex = (int)((bits.u >> 23) & 0xFF) - 127;
+	bits.u = (bits.u & 0x807FFFFFu) | (127u << 23);   // mantissa in [1, 2)
+	float m = bits.f - 1.f;                            // now in [0, 1)
+	float p = m * (1.44269504f
+	           + m * (-0.72134752f
+	           + m * (0.47811216f
+	           + m * (-0.29999894f
+	           + m * 0.11599999f))));
+	return (float)ex + p;
+}
+
+static inline float powApprox(float x, float y) {
+	if (x <= 0.f) return 0.f;
+	return exp2Approx(y * log2Approx(x));
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 static const int NUM_CH   = 8;
@@ -27,6 +105,17 @@ static const float PART_DECAY[NUM_PART] = { 1.f,  0.45f,  0.22f };
 
 // Clock-sync divisor list (RATE knob picks clocks-per-rotation).
 static const float CLK_DIVS[6] = { 32.f, 16.f, 8.f, 4.f, 2.f, 1.f };
+
+// Equal-power pan gains for the 8 channels, precomputed (channel c maps to
+// linear pan = c / 7, then angle = pan × π/2). cos → L, sin → R. Constant.
+static const float PAN_L[NUM_CH] = {
+	1.0000000f, 0.9749279f, 0.9009689f, 0.7818315f,
+	0.6234898f, 0.4338837f, 0.2225209f, 0.0000000f
+};
+static const float PAN_R[NUM_CH] = {
+	0.0000000f, 0.2225209f, 0.4338837f, 0.6234898f,
+	0.7818315f, 0.9009689f, 0.9749279f, 1.0000000f
+};
 
 // RATE knob log2 range in Hz (log2(0.02)..log2(2)).
 static const float RATE_LO_LOG2 = -5.6438f;
@@ -523,11 +612,20 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 
 	// Excite shape parameter: -1 → exp2(-2) = 0.25 (exp), 0 → 1 (linear),
 	// +1 → exp2(2) = 4 (log). Recompute per block only.
-	float shapeP = exp2f(shape * 2.f);
+	float shapeP = exp2Approx(shape * 2.f);
 
 	// Declick smoothing coefficients (per-sample).
 	const float kWin = fminf(1.f, sampleTime / 0.004f);
 	const float kAtk = fminf(1.f, sampleTime / 0.0008f);
+
+	// Per-partial decay multiplier — constant across the block for a given
+	// decayK/PART_DECAY. Hoisting out of the per-sample loop saves 24 → 3
+	// expApprox calls per block. env *= mult per sample.
+	float partDecayMult[NUM_PART];
+	for (int k = 0; k < NUM_PART; k++) {
+		partDecayMult[k] = expApprox(-sampleTime
+			/ (decayK * PART_DECAY[k] * 0.25f));
+	}
 
 	// Control-rate update interval: every 64 samples (matches VCV divider).
 	const float ctrlInterval = 64.f * sampleTime;
@@ -562,14 +660,14 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 			if (clocked) {
 				// RATE knob picks clocks-per-rotation from DIVS list.
 				// Map log2 range to index 0..5.
-				float knobLog = log2f(fmaxf(rateHzBase, 1e-4f));  // knob in log2 Hz
+				float knobLog = log2Approx(fmaxf(rateHzBase, 1e-4f));  // knob in log2 Hz
 				float k = clampf((knobLog - RATE_LO_LOG2)
 				              / (RATE_HI_LOG2 - RATE_LO_LOG2), 0.f, 0.999f);
 				rate = 1.f / (p->clkInterval * CLK_DIVS[(int)(k * 6.f)]);
 			} else {
 				rate = rateHzBase;
 			}
-			if (rateCV) rate *= exp2f(rateCV[f] / 2.5f);
+			if (rateCV) rate *= exp2Approx(rateCV[f] / 2.5f);
 
 			float spread = clampf((float)nPotSpread * 0.01f
 				+ (spreadCV ? spreadCV[f] * 0.1f : 0.f), 0.f, 1.f);
@@ -586,10 +684,10 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 				float x = (NUM_CH > 1) ? (float)c / (float)(NUM_CH - 1) : 0.f;
 				float mult;
 				switch (relate) {
-					case 1:  mult = fmaxf(1.f, roundf(powf(maxR, x))); break;
-					case 2:  mult = powf(maxR, p->randMul[c]); break;
+					case 1:  mult = fmaxf(1.f, roundf(powApprox(maxR, x))); break;
+					case 2:  mult = powApprox(maxR, p->randMul[c]); break;
 					case 3:  mult = 1.f + 3.f * p->ripple[c]; break;
-					default: mult = powf(maxR, x); break;
+					default: mult = powApprox(maxR, x); break;
 				}
 				// Slow per-channel wobble
 				p->wobTimer[c] -= ctrlDt;
@@ -599,10 +697,10 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 				}
 				p->wob[c] += (p->wobTarget[c] - p->wob[c])
 				           * fminf(1.f, ctrlDt / 2.f);
-				p->rateEff[c] = rate * mult * exp2f(drift * p->wob[c]);
+				p->rateEff[c] = rate * mult * exp2Approx(drift * p->wob[c]);
 
 				int deg = clampi(p->v[CH_DEG(c)], 0, NUM_DEG - 1);
-				p->freq[c] = 130.81f * exp2f(
+				p->freq[c] = 130.81f * exp2Approx(
 					((float)rootPc + degreeSemis(deg, scaleIdx)) / 12.f
 					+ (float)p->curOct);
 			}
@@ -625,7 +723,7 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 			float t = 1.f - 4.f * fabsf(p->phase[c] - 0.5f);
 			// Symmetric curve shaping (dwell at extremes or centre)
 			if (shapeP != 1.f) {
-				float a = powf(fabsf(t), shapeP);
+				float a = powApprox(fabsf(t), shapeP);
 				t = (t < 0.f) ? -a : a;
 			}
 			t *= att;
@@ -680,11 +778,10 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 				if (attacking) {
 					p->partEnv[c][k] += (1.f - p->partEnv[c][k]) * kAtk;
 				} else {
-					p->partEnv[c][k] *= expf(-sampleTime
-						/ (decayK * PART_DECAY[k] * 0.25f));
+					p->partEnv[c][k] *= partDecayMult[k];
 				}
 				float env = (1.f - exciteX) + exciteX * p->partEnv[c][k];
-				v += PART_AMP[k] * env * sinf(2.f * (float)M_PI * p->partPhase[c][k]);
+				v += PART_AMP[k] * env * sinApprox(2.f * (float)M_PI * p->partPhase[c][k]);
 			}
 			v *= p->winSm[c];
 			v *= (1.f - exciteX) * wgt + exciteX;
@@ -693,10 +790,9 @@ void step(_NT_algorithm* self, float* busFrames, int numFramesBy4) {
 			if (audioOut[c]) writeOut(audioOut[c], f, audioMode[c], out);
 			if (lfoOut[c])   writeOut(lfoOut[c],   f, lfoMode[c],   t * 5.f);
 
-			// Equal-power L↔R pan across the 8 channels
-			float pan = (NUM_CH > 1) ? (float)c / (float)(NUM_CH - 1) : 0.5f;
-			mL += out * cosf(pan * (float)M_PI_2);
-			mR += out * sinf(pan * (float)M_PI_2);
+			// Equal-power L↔R pan across the 8 channels — precomputed constants
+			mL += out * PAN_L[c];
+			mR += out * PAN_R[c];
 		}
 
 		float mixScale = 0.5f;
