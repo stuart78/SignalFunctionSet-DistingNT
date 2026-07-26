@@ -10,6 +10,7 @@ Built against the [distingNT C++ API](https://github.com/expertsleepersltd/disti
 |---|---|---|---|
 | FugueNT | Released v1.0.0 | [modules/fugueNT](modules/fugueNT) | [docs/fugue-nt.md](docs/fugue-nt.md) |
 | ShiftNT | In development | [modules/shiftNT](modules/shiftNT) | [docs/shift-nt.md](docs/shift-nt.md) |
+| ChimeNT | In development | [modules/chimeNT](modules/chimeNT) | [docs/chime-nt.md](docs/chime-nt.md) |
 
 ## Cloning
 
