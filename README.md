@@ -6,11 +6,13 @@ Built against the [distingNT C++ API](https://github.com/expertsleepersltd/disti
 
 ## Modules
 
-| Module | Status | Source | Docs |
-|---|---|---|---|
-| FugueNT | Released v1.0.0 | [modules/fugueNT](modules/fugueNT) | [docs/fugue-nt.md](docs/fugue-nt.md) |
-| ShiftNT | In development | [modules/shiftNT](modules/shiftNT) | [docs/shift-nt.md](docs/shift-nt.md) |
-| ChimeNT | In development | [modules/chimeNT](modules/chimeNT) | [docs/chime-nt.md](docs/chime-nt.md) |
+| Module | Status | Release | Source | Docs |
+|---|---|---|---|---|
+| FugueNT | Released, in gallery | [`fugue-nt/v1.0.0`](https://github.com/stuart78/SignalFunctionSet-DistingNT/releases/tag/fugue-nt%2Fv1.0.0) | [modules/fugueNT](modules/fugueNT) | [docs/fugue-nt.md](docs/fugue-nt.md) |
+| ShiftNT | Released, submission pending | [`shift-nt/v1.0.0`](https://github.com/stuart78/SignalFunctionSet-DistingNT/releases/tag/shift-nt%2Fv1.0.0) | [modules/shiftNT](modules/shiftNT) | [docs/shift-nt.md](docs/shift-nt.md) |
+| ChimeNT | Released, submission pending | [`chime-nt/v1.0.0`](https://github.com/stuart78/SignalFunctionSet-DistingNT/releases/tag/chime-nt%2Fv1.0.0) | [modules/chimeNT](modules/chimeNT) | [docs/chime-nt.md](docs/chime-nt.md) |
+
+Each plugin is released under a namespaced tag `{plugin-slug}/v{version}` with a single `.o` file attached — matches the layout used by [`NerdRoger/disting_nt_plugins`](https://github.com/NerdRoger/disting_nt_plugins). See [docs/gallery-submission.md](docs/gallery-submission.md) for the [nt_helper gallery](https://nt-gallery.nosuch.dev/) registration flow and `scripts/release-plugin.sh` for the release helper.
 
 ## Cloning
 
